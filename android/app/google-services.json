@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1089643255213",
+    "project_id": "amende-a6b18",
+    "storage_bucket": "amende-a6b18.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1089643255213:android:17460079eee906e186fd24",
+        "android_client_info": {
+          "package_name": "com.example.application_amende"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDlXyHTHn-0S1pw5RW5J_vGDDqVmeuEGdg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
