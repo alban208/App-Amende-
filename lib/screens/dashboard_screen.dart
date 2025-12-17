@@ -1,16 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../models/amende.dart';
 import '../services/firebase_service.dart';
+import '../models/amende.dart';
 import '../amende_form_screen.dart';
-import 'amende_detail_screen.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
   @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  // Key unique pour forcer le rebuild du StreamBuilder
+  Key _streamKey = UniqueKey();
+
+  void _refreshStream() {
+    setState(() {
+      _streamKey = UniqueKey();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Utiliser le singleton instance
     final service = FirebaseService.instance;
     final user = FirebaseAuth.instance.currentUser;
 
@@ -18,6 +30,12 @@ class DashboardScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Mes amendes'),
         actions: [
+          // Bouton de rafraîchissement manuel
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Rafraîchir',
+            onPressed: _refreshStream,
+          ),
           // Bouton de déconnexion
           IconButton(
             icon: const Icon(Icons.logout),
@@ -28,7 +46,6 @@ class DashboardScreen extends StatelessWidget {
           ),
         ],
       ),
-      
       // Bouton flottant pour ajouter une amende
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
@@ -37,8 +54,11 @@ class DashboardScreen extends StatelessWidget {
               builder: (_) => const AmendeFormScreen(),
             ),
           );
-          
-          if (created == true && context.mounted) {
+
+          if (created == true && mounted) {
+            // Forcer le rafraîchissement du stream
+            _refreshStream();
+
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Amende ajoutée avec succès'),
@@ -50,7 +70,6 @@ class DashboardScreen extends StatelessWidget {
         icon: const Icon(Icons.add),
         label: const Text('Ajouter'),
       ),
-      
       body: Column(
         children: [
           // En-tête avec info utilisateur
@@ -70,27 +89,33 @@ class DashboardScreen extends StatelessWidget {
                   Text(
                     user.email ?? 'Utilisateur',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                 ],
               ),
             ),
-          
           // Liste des amendes
           Expanded(
             child: StreamBuilder<List<Amende>>(
+              key: _streamKey, // Clé unique pour forcer le rebuild
               stream: service.streamMyAmendes(),
               builder: (context, snapshot) {
+                print(
+                    '🔵 StreamBuilder rebuild - connectionState: ${snapshot.connectionState}');
+                print(
+                    '🔵 Has data: ${snapshot.hasData}, Data length: ${snapshot.data?.length}');
+
                 // État de chargement
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
                     child: CircularProgressIndicator(),
                   );
                 }
-                
+
                 // Erreur
                 if (snapshot.hasError) {
+                  print('❌ StreamBuilder error: ${snapshot.error}');
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -105,13 +130,19 @@ class DashboardScreen extends StatelessWidget {
                           'Erreur: ${snapshot.error}',
                           textAlign: TextAlign.center,
                         ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _refreshStream,
+                          child: const Text('Réessayer'),
+                        ),
                       ],
                     ),
                   );
                 }
-                
+
                 final amendes = snapshot.data ?? [];
-                
+                print('✅ Affichage de ${amendes.length} amendes');
+
                 // Aucune amende
                 if (amendes.isEmpty) {
                   return Center(
@@ -126,22 +157,24 @@ class DashboardScreen extends StatelessWidget {
                         const SizedBox(height: 16),
                         Text(
                           'Aucune amende pour l\'instant',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: Colors.grey.shade600,
-                          ),
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    color: Colors.grey.shade600,
+                                  ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'Appuyez sur + pour en ajouter une',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey.shade500,
-                          ),
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Colors.grey.shade500,
+                                  ),
                         ),
                       ],
                     ),
                   );
                 }
-                
+
                 // Liste des amendes
                 return ListView.separated(
                   padding: const EdgeInsets.all(8),
@@ -149,8 +182,9 @@ class DashboardScreen extends StatelessWidget {
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final amende = amendes[index];
-                    final euros = (amende.montantCentimes / 100).toStringAsFixed(2);
-                    
+                    final euros =
+                        (amende.montantCentimes / 100).toStringAsFixed(2);
+
                     // Couleur selon le statut
                     Color statusColor;
                     IconData statusIcon;
@@ -163,61 +197,114 @@ class DashboardScreen extends StatelessWidget {
                         statusColor = Colors.red;
                         statusIcon = Icons.warning;
                         break;
-                      default:
+                      default: // en_attente
                         statusColor = Colors.orange;
                         statusIcon = Icons.pending;
                     }
-                    
-                    return Card(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
+
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: statusColor.withOpacity(0.2),
+                        child: Icon(statusIcon, color: statusColor),
                       ),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: statusColor.withOpacity(0.2),
-                          child: Icon(
-                            statusIcon,
-                            color: statusColor,
+                      title: Text(
+                        '${amende.type} · $euros €',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(
+                        'Statut: ${amende.statut} · Échéance: ${_formatDate(amende.dateLimite)}',
+                      ),
+                      trailing: PopupMenuButton(
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'payee',
+                            child: Text('Marquer payée'),
                           ),
-                        ),
-                        
-                        title: Text(
-                          '${amende.type} · $euros €',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        
-                        subtitle: Text(
-                          'Statut: ${amende.statut} · Échéance: ${_formatDate(amende.dateLimite)}',
-                        ),
-                        
-                        trailing: amende.statut == 'en_attente'
-                            ? TextButton(
-                                onPressed: () async {
-                                  await FirebaseService.instance.markPayee(amende.id);
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Amende marquée comme payée'),
-                                      ),
-                                    );
-                                  }
-                                },
-                                child: const Text('Marquer payée'),
-                              )
-                            : Icon(
-                                Icons.check,
-                                color: statusColor,
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Text('Supprimer'),
+                          ),
+                        ],
+                        onSelected: (value) async {
+                          if (value == 'payee') {
+                            await service.markPayee(amende.id);
+                            _refreshStream();
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Amende marquée comme payée'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
+                          } else if (value == 'delete') {
+                            // Demander confirmation
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Confirmer la suppression'),
+                                content: Text(
+                                    'Supprimer l\'amende "${amende.type}" ?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, false),
+                                    child: const Text('Annuler'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, true),
+                                    child: const Text('Supprimer'),
+                                  ),
+                                ],
                               ),
-                        
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => AmendeDetailScreen(amende: amende),
-                            ),
-                          );
+                            );
+
+                            if (confirm == true) {
+                              await service.deleteAmende(amende.id);
+                              _refreshStream();
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Amende supprimée'),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                              }
+                            }
+                          }
                         },
                       ),
+                      onTap: () {
+                        // Afficher les détails dans un dialog
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: Text(amende.type),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Montant: $euros €'),
+                                Text('Statut: ${amende.statut}'),
+                                Text(
+                                    'Date limite: ${_formatDate(amende.dateLimite)}'),
+                                if (amende.numeroTelepaiement != null)
+                                  Text(
+                                      'N° télépaiement: ${amende.numeroTelepaiement}'),
+                                if (amende.cle != null)
+                                  Text('Clé: ${amende.cle}'),
+                              ],
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Fermer'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     );
                   },
                 );
@@ -228,11 +315,8 @@ class DashboardScreen extends StatelessWidget {
       ),
     );
   }
-  
-  /// Formater une date en français
+
   String _formatDate(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}/'
-           '${date.month.toString().padLeft(2, '0')}/'
-           '${date.year}';
+    return '${date.day}/${date.month}/${date.year}';
   }
 }
