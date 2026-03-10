@@ -118,7 +118,7 @@ class _AmendeFormScreenState extends State<AmendeFormScreen> {
             )
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
-              child: Form(
+              child: Form( 
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
